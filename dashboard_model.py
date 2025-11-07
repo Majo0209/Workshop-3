@@ -21,6 +21,9 @@ axis_style = dict(
     linecolor="lightgray"
 )
 
+# --------------------------------------------------------------
+# CONFIGURACIÓN DE LA APLICACIÓN
+# --------------------------------------------------------------
 st.set_page_config(
     page_title="Happiness Model Dashboard",
     layout="wide",
@@ -29,6 +32,9 @@ st.set_page_config(
 st.title("Happiness Model Dashboard")
 st.caption("Visual evaluation and KPIs of the Ridge Regression model (Happiness Prediction)")
 
+# --------------------------------------------------------------
+# CONEXIÓN Y CARGA DE DATOS
+# --------------------------------------------------------------
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "root"
 MYSQL_HOST = "localhost"
@@ -50,6 +56,9 @@ def load_data():
 df = load_data()
 df["year"] = df["year"].astype(int)
 
+# --------------------------------------------------------------
+# SIDEBAR - FILTROS
+# --------------------------------------------------------------
 st.sidebar.header("Visualization Filters")
 
 years = sorted(df["year"].unique())
@@ -78,12 +87,18 @@ if not selected_years:
     st.warning("Please select at least one year in the sidebar to view the visualizations.")
     st.stop()
 
+# --------------------------------------------------------------
+# CÁLCULO DE MÉTRICAS
+# --------------------------------------------------------------
 r2 = r2_score(df_filt["score_real"], df_filt["score_predicho"])
 rmse = np.sqrt(mean_squared_error(df_filt["score_real"], df_filt["score_predicho"]))
 mae = mean_absolute_error(df_filt["score_real"], df_filt["score_predicho"])
 mape = mean_absolute_percentage_error(df_filt["score_real"], df_filt["score_predicho"]) * 100
 bias = np.mean(df_filt["score_predicho"] - df_filt["score_real"])
 
+# --------------------------------------------------------------
+# VISUALIZACIÓN DE INDICADORES
+# --------------------------------------------------------------
 st.markdown("### Model Performance Indicators")
 col_kpis = st.columns(5)
 for col, (label, value) in zip(
@@ -98,10 +113,49 @@ for col, (label, value) in zip(
 ):
     col.metric(label, value)
 
+# --------------------------------------------------------------
+# MAPA MUNDIAL DE FELICIDAD
+# --------------------------------------------------------------
+st.markdown("### Predicted Happiness by Country")
+try:
+    fig_map = px.choropleth(
+        df_filt,
+        locations="country",
+        locationmode="country names",
+        color="score_predicho",
+        hover_name="country",
+        color_continuous_scale="Viridis",
+        title=f"Predicted Happiness Score ({set_sel} dataset)",
+    )
+    fig_map.update_layout(
+        geo=dict(showframe=False, showcoastlines=True, projection_type="natural earth"),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        margin=dict(l=0, r=0, t=40, b=0),
+        font=default_font,
+        legend=dict(
+            bgcolor="rgba(255,255,255,0.95)",
+            bordercolor="lightgray",
+            borderwidth=1,
+            font=dict(color="black")
+        ),
+        coloraxis_colorbar=dict(
+            title=dict(text="Predicted Score", font=dict(color="black", size=13)),
+            tickfont=dict(color="black", size=12)
+        )
+    )
+    st.plotly_chart(fig_map, use_container_width=True)
+except Exception as e:
+    st.warning(f"Could not render map: {e}")
+
 st.markdown("")
 
+# --------------------------------------------------------------
+# VISUALIZACIONES PRINCIPALES
+# --------------------------------------------------------------
 col1, col2 = st.columns(2, gap="medium")
 
+# --- 1. Real vs Predicho
 with col1:
     st.subheader("Real vs Predicted Score (colored by year)")
     df_filt["year_str"] = df_filt["year"].astype(str)
@@ -132,6 +186,7 @@ with col1:
     )
     st.plotly_chart(fig1, use_container_width=True)
 
+# --- 2. Promedio anual
 with col2:
     st.subheader("Annual Average of Scores")
     df_year = df_filt.groupby("year")[["score_real", "score_predicho"]].mean().reset_index()
@@ -139,14 +194,12 @@ with col2:
     fig2.add_trace(go.Scatter(
         x=df_year["year"], y=df_year["score_real"],
         mode="lines+markers", name="Real",
-        line=dict(color="#1f77b4", width=2),
-        hovertemplate="Year %{x}<br>Real Score: %{y:.3f}<extra></extra>"
+        line=dict(color="#1f77b4", width=2)
     ))
     fig2.add_trace(go.Scatter(
         x=df_year["year"], y=df_year["score_predicho"],
         mode="lines+markers", name="Predicted",
-        line=dict(color="#ff0ea3", width=2),
-        hovertemplate="Year %{x}<br>Predicted Score: %{y:.3f}<extra></extra>"
+        line=dict(color="#ff0ea3", width=2)
     ))
     fig2.update_layout(
         plot_bgcolor="white", paper_bgcolor="white", font=default_font,
@@ -161,6 +214,7 @@ with col2:
     )
     st.plotly_chart(fig2, use_container_width=True)
 
+# --- 3. Barras Real vs Predicho por año
 with col1:
     st.subheader("Average Score per Year (Real vs Predicted)")
     df_year_melt = df_year.melt(
@@ -186,7 +240,7 @@ with col1:
     )
     st.plotly_chart(fig3, use_container_width=True)
 
-
+# --- 4. Distribución del error
 with col2:
     st.subheader("Error Distribution (Predicted - Real)")
     df_filt["error"] = df_filt["score_predicho"] - df_filt["score_real"]
@@ -209,20 +263,25 @@ with col2:
     )
     st.plotly_chart(fig4, use_container_width=True)
 
+# --- 5. Importancia de variables
 with col1:
     st.subheader("Feature Importance (Ridge Coefficients)")
     try:
         model_path = "models/Best_Ridge_Model.pkl"
         if os.path.exists(model_path):
             model = joblib.load(model_path)
+            # Detectar nombres automáticamente si están disponibles
+            if hasattr(model, "feature_names_in_"):
+                feature_names = model.feature_names_in_
+            else:
+                # Fallback a nombres genéricos si no existen
+                feature_names = [f"Feature_{i}" for i in range(len(model.coef_))]
+
             coef_df = pd.DataFrame({
-                "Feature": [
-                    "gdp_per_capita", "social_support",
-                    "health_life_expectancy", "freedom",
-                    "perceptions_of_corruption", "year"
-                ],
+                "Feature": feature_names,
                 "Coefficient": model.coef_
             }).sort_values("Coefficient", key=abs, ascending=False)
+
             fig5 = px.bar(
                 coef_df, x="Coefficient", y="Feature",
                 orientation="h", color="Coefficient",

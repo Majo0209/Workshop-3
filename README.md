@@ -256,8 +256,15 @@ This opens the interactive Streamlit dashboard with model metrics, charts, and c
 
 ### Streamlit Dashboard Visualizations
 
-* **Real vs Predicted Score:** alignment between actual and predicted values.
-* **Annual Average of Scores:** consistent performance across years.
-* **Error Distribution:** centered around zero (no bias).
-* **Feature Importance:** top factors are *Freedom*, *Health Life Expectancy*, and *GDP per Capita*.
+* **Real vs Predicted Score**: alignment between actual and predicted values.
+
+* **Annual Average of Scores**: consistent performance across years.
+
+* **Average Score per Year**: predicted means closely match real annual values.
+
+* **Error Distribution**: centered around zero, indicating no bias.
+
+* **Feature Importance**: top factors are Freedom, Health Life Expectancy, and GDP per Capita.
+
+* **Global Map**: displays predicted happiness by country for geographic comparison.
 
